@@ -14,46 +14,9 @@
 
 ---
 
-## 2. High-Level Design (HLD)
+## 2. Low-Level Design (LLD)
 
-```mermaid
-flowchart LR
-    U([User]) -->|photo + optional question| UI[Streamlit UI]
-
-    subgraph S1["Step 1: Perception (Vision LLM)"]
-        IMG[prepare_image<br/>resize to 1024px JPEG] --> VIS[Gemini via ChatGoogleGenerativeAI<br/>.with_structured_output]
-        VIS --> DF[DetectedFoods<br/>Pydantic: name + portion]
-    end
-
-    subgraph S2["Step 2: Retrieval (RAG)"]
-        KB[(knowledge/foods.csv<br/>166 foods: kcal, protein, carbs, fat)] --> IDX[TFIDFRetriever<br/>char n-grams 2-4, k=3]
-        DF --> IDX
-        IDX --> CTX[Context block per item]
-    end
-
-    subgraph S3["Step 3: Grounded answer (LCEL)"]
-        CTX --> CH[ANSWER_PROMPT | LLM | StrOutputParser]
-        CH --> OUT[Itemized kcal + total<br/>+ macros + health notes]
-    end
-
-    UI --> IMG
-    OUT -->|streamed tokens| UI
-```
-
-| Layer | Component | Role |
-|---|---|---|
-| Presentation | Streamlit (`st.status`, `st.write_stream`, sidebar) | Upload, step-by-step progress, streamed answer, knowledge-base search box, "retrieved entries" panel |
-| Perception | `ChatGoogleGenerativeAI` + `with_structured_output(DetectedFoods)` | Image → typed list of `{name, portion}` |
-| Knowledge base | `foods.csv` → LangChain `Document`s | Trusted nutrition facts (Indian and common foods) |
-| Retrieval | `TFIDFRetriever` (character n-grams) | Fuzzy-matches the detected names to knowledge-base entries locally, in milliseconds |
-| Reasoning | LCEL chain `ChatPromptTemplate | LLM | StrOutputParser` | Calculates calories only from the retrieved facts |
-| Ops | `st.cache_resource`, timeouts, retries, logging | Speed, resilience, observability |
-
----
-
-## 3. Low-Level Design (LLD)
-
-### 3.1 Request flow (sequence diagram)
+### 2.1 Request flow (sequence diagram)
 
 ```mermaid
 sequenceDiagram
@@ -84,7 +47,7 @@ sequenceDiagram
     UI-->>User: Itemized kcal, Total, macros, notes + "Retrieved entries" expander
 ```
 
-### 3.2 Data models (Pydantic → structured output)
+### 2.2 Data models (Pydantic → structured output)
 
 ```mermaid
 classDiagram
@@ -92,17 +55,19 @@ classDiagram
         +list~FoodItem~ items
     }
     class FoodItem {
-        +str name   "e.g. Butter Naan"
-        +str portion "e.g. 2 pieces / 150 g"
+        +str name
+        +str portion
     }
     class Document {
-        +str page_content  "food name only (what TF-IDF matches on)"
-        +dict metadata     "food, text = full nutrition line"
+        +str page_content
+        +dict metadata
     }
     DetectedFoods "1" --> "*" FoodItem
+    note for FoodItem "name: e.g. Butter Naan<br/>portion: e.g. 2 pieces or 150 g"
+    note for Document "page_content: food name only, what TF-IDF matches on<br/>metadata: food + full nutrition text"
 ```
 
-### 3.3 Code map (click to jump to the code)
+### 2.3 Code map (click to jump to the code)
 
 | What | Where | Key detail |
 |---|---|---|
@@ -120,7 +85,7 @@ classDiagram
 
 ---
 
-## 4. Each step explained with LangChain terminology
+## 3. Each step explained with LangChain terminology
 
 | # | Step | LangChain concept | What to say in the interview |
 |---|---|---|---|
@@ -136,7 +101,7 @@ classDiagram
 
 ---
 
-## 5. Design decisions & trade-offs
+## 4. Design decisions & trade-offs
 
 | Decision | Why | Trade-off / alternative |
 |---|---|---|
@@ -152,7 +117,7 @@ classDiagram
 
 ---
 
-## 6. Challenges I solved (good STAR stories)
+## 5. Challenges I solved (good STAR stories)
 
 1. **Inconsistent calorie numbers (v1 → v2):** the plain vision prompt ([app.py](app.py)) gave different numbers for the same photo. *Fix:* redesigned it as RAG with a curated nutrition knowledge base, a prompt that allows calculation only from retrieved facts, and visible retrieved entries for transparency.
 2. **Latency:** the first version took about 9 seconds. *Fix:* profiled with logging, set `thinking_budget=0`, downscaled images, used local retrieval and streamed the answer. Result: **~2.7s**, about 3x faster, and the first tokens appear almost immediately.
@@ -163,7 +128,7 @@ classDiagram
 
 ---
 
-## 7. Limitations & how I'd improve it
+## 6. Limitations & how I'd improve it
 
 - **Portion estimation** from a 2D photo is the biggest error source. Ideas: a reference object, depth estimation, or asking the user to confirm portions.
 - **Hybrid retrieval:** TF-IDF/BM25 + dense embeddings for synonyms and regional names.
@@ -174,7 +139,7 @@ classDiagram
 
 ---
 
-## 8. Likely interview questions (with short answers)
+## 7. Likely interview questions (with short answers)
 
 **Q: Why is this RAG if you don't use a vector database?**
 RAG means *retrieve then generate*. The retriever can be dense (embeddings), sparse (TF-IDF/BM25) or hybrid. For short keyword-like food names, sparse retrieval is the better and cheaper choice.
@@ -199,7 +164,7 @@ Move the knowledge base to a managed vector / hybrid store, run the pipeline beh
 
 ---
 
-## 9. Quick glossary
+## 8. Quick glossary
 
 | Term | One-liner |
 |---|---|
