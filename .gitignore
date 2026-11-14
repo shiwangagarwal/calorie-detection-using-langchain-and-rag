@@ -1,0 +1,11 @@
+# secrets - never commit
+.env
+.streamlit/secrets.toml
+
+# local environments / caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+faiss_index/
+*.db

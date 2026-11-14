@@ -1,0 +1,10 @@
+streamlit
+python-dotenv
+pillow
+pandas
+pydantic>=2
+scikit-learn
+google-generativeai
+langchain-core
+langchain-community
+langchain-google-genai
